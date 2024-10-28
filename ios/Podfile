@@ -1,27 +1,28 @@
-# Resolve react_native_pods.rb with node to allow for hoisting
-require Pod::Executable.execute_command('node', ['-p',
-  'require.resolve(
-    "react-native/scripts/react_native_pods.rb",
-    {paths: [process.argv[1]]},
-  )', __dir__]).strip
+require_relative '../node_modules/react-native/scripts/react_native_pods'
+require_relative '../node_modules/@react-native-community/cli-platform-ios/native_modules'
 
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
-linkage = ENV['USE_FRAMEWORKS']
-if linkage != nil
-  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
-  use_frameworks! :linkage => linkage.to_sym
-end
+# React Native Permissions 설정
+require_relative '../node_modules/react-native-permissions/scripts/setup'
+setup_permissions([
+  'Bluetooth'
+])
 
 target 'WebAppWrapper' do
   config = use_native_modules!
 
   use_react_native!(
     :path => config[:reactNativePath],
-    # An absolute path to your application root.
-    :app_path => "#{Pod::Config.instance.installation_root}/.."
+    # Hermes is now enabled by default. Disable by setting this flag to false.
+    :hermes_enabled => true
   )
+
+  # 필요한 다른 pod들을 여기에 추가하세요
+  pod 'react-native-ble-manager', :path => '../node_modules/react-native-ble-manager'
+  pod 'react-native-ble-plx', :path => '../node_modules/react-native-ble-plx'
+  pod 'react-native-webview', :path => '../node_modules/react-native-webview'
 
   target 'WebAppWrapperTests' do
     inherit! :complete
@@ -29,12 +30,16 @@ target 'WebAppWrapper' do
   end
 
   post_install do |installer|
-    # https://github.com/facebook/react-native/blob/main/packages/react-native/scripts/react_native_pods.rb#L197-L202
-    react_native_post_install(
-      installer,
-      config[:reactNativePath],
-      :mac_catalyst_enabled => false,
-      # :ccache_enabled => true
-    )
+    react_native_post_install(installer)
+    
+    # 이 줄을 제거하거나 주석 처리하세요
+    # __apply_Xcode_12_5_M1_post_install_workaround(installer)
+    
+    # 대신 다음 줄을 추가하세요
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)', '_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION']
+      end
+    end
   end
 end
