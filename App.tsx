@@ -1,6 +1,5 @@
 import React, {useEffect, useState} from 'react';
 import {
-  Button,
   FlatList,
   SafeAreaView,
   StyleSheet,
@@ -10,8 +9,14 @@ import {
   Image,
 } from 'react-native';
 import {BleManager, Device} from 'react-native-ble-plx';
+import {Buffer} from 'buffer';
+global.Buffer = Buffer;
 
 const manager = new BleManager();
+
+// ESP32 서비스 및 특성 UUID 추가
+const ESP32_SERVICE_UUID = '6E400001-B5A3-F393-E0A9-E50E24DCCA9E';
+const ESP32_CHARACTERISTIC_UUID_TX = '6E400003-B5A3-F393-E0A9-E50E24DCCA9E';
 
 function App(): React.JSX.Element {
   const [scanDeviceModalVisible, setScanDeviceModalVisible] =
@@ -20,6 +25,10 @@ function App(): React.JSX.Element {
   const [devices, setDevices] = useState<Device[]>([]);
   const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
   const [message, setMessage] = useState('');
+  // 새로운 상태 추가
+  const [airHumidity, setAirHumidity] = useState<number | null>(null);
+  const [soilHumidity, setSoilHumidity] = useState<number | null>(null);
+  const [temperature, setTemperature] = useState<number | null>(null);
 
   useEffect(() => {
     const subscription = manager.onStateChange(state => {
@@ -69,8 +78,10 @@ function App(): React.JSX.Element {
       const discoveredDevice =
         await connectedDevice.discoverAllServicesAndCharacteristics();
       setConnectedDevice(discoveredDevice);
+
       console.log('Connected to device:', discoveredDevice.name);
       setScanDeviceModalVisible(false);
+      startMonitoringData(discoveredDevice);
     } catch (error) {
       console.log('Connection error:', error);
     }
@@ -84,10 +95,37 @@ function App(): React.JSX.Element {
           const characteristics = await service.characteristics();
           for (const characteristic of characteristics) {
             if (characteristic.isWritableWithResponse) {
-              const message = 'Hello ESP32!';
+              const message = 'get_temp_humidity';
               const encodedMessage = Buffer.from(message).toString('base64');
               await characteristic.writeWithResponse(encodedMessage);
               console.log('Message sent successfully');
+              // await readMessage();
+            }
+          }
+        }
+        console.log('No writable characteristic found');
+      } catch (error) {
+        console.log('Error sending message:', error);
+      }
+    } else {
+      console.log('No device connected');
+    }
+  };
+
+  const readMessage = async () => {
+    if (connectedDevice) {
+      try {
+        const services = await connectedDevice.services();
+        for (const service of services) {
+          const characteristics = await service.characteristics();
+          for (const characteristic of characteristics) {
+            if (characteristic.isReadable) {
+              const readResult = await characteristic.read();
+              const decodedMessage = Buffer.from(
+                readResult.value,
+                'base64',
+              ).toString('utf-8');
+              console.log('Message received:', decodedMessage);
               return;
             }
           }
@@ -175,6 +213,39 @@ function App(): React.JSX.Element {
     return <></>;
   };
 
+  // 데이터 수신 모니터링 함수
+  const startMonitoringData = (device: Device) => {
+    device.monitorCharacteristicForService(
+      ESP32_SERVICE_UUID,
+      ESP32_CHARACTERISTIC_UUID_TX,
+      (error, characteristic) => {
+        if (error) {
+          console.log('Error monitoring:', error);
+          return;
+        }
+        if (characteristic?.value) {
+          const decodedValue = Buffer.from(
+            characteristic.value,
+            'base64',
+          ).toString('utf-8');
+          console.log('Received data:', decodedValue);
+          const object = JSON.parse(decodedValue);
+          if (object.humidity) setAirHumidity(object.humidity);
+          if (object.temperature) setTemperature(object.temperature);
+        }
+      },
+    );
+  };
+
+  useEffect(() => {
+    if (connectedDevice) {
+      const intervalFunction = () => {
+        sendMessage();
+      };
+      const intervalId = setInterval(intervalFunction, 2000);
+    }
+  }, [connectedDevice]);
+
   return (
     <SafeAreaView style={styles.container}>
       <Image
@@ -217,6 +288,7 @@ function App(): React.JSX.Element {
               justifyContent: 'center',
             }}>
             <Text>공기 습도</Text>
+            <Text>{airHumidity !== null ? `${airHumidity}%` : 'N/A'}</Text>
           </View>
           <View
             style={{
@@ -229,6 +301,7 @@ function App(): React.JSX.Element {
               justifyContent: 'center',
             }}>
             <Text>토양 습도</Text>
+            <Text>{soilHumidity !== null ? `${soilHumidity}%` : 'N/A'}</Text>
           </View>
         </View>
         <View
@@ -249,6 +322,7 @@ function App(): React.JSX.Element {
               justifyContent: 'center',
             }}>
             <Text>온도</Text>
+            <Text>{temperature !== null ? `${temperature}°C` : 'N/A'}</Text>
           </View>
           <TouchableOpacity
             style={{
@@ -260,9 +334,9 @@ function App(): React.JSX.Element {
               alignItems: 'center',
               justifyContent: 'center',
             }}
-            onPress={startScan}>
-            <Text>{devices ? connectedDevice?.name : '블루투스 연결'}</Text>
-            <Text>{devices ? '연결됨' : ''}</Text>
+            onPress={connectedDevice ? sendMessage : startScan}>
+            <Text>{connectedDevice ? connectedDevice.name : ''}</Text>
+            <Text>{connectedDevice ? '데이터 업데이트' : '블루투스 연결'}</Text>
           </TouchableOpacity>
         </View>
         <View
