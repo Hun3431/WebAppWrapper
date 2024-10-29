@@ -7,6 +7,7 @@ import {
   View,
   TouchableOpacity,
   Image,
+  TextInput,
 } from 'react-native';
 import {BleManager, Device} from 'react-native-ble-plx';
 import {Buffer} from 'buffer';
@@ -29,6 +30,10 @@ function App(): React.JSX.Element {
   const [airHumidity, setAirHumidity] = useState<number | null>(null);
   const [soilHumidity, setSoilHumidity] = useState<number | null>(null);
   const [temperature, setTemperature] = useState<number | null>(null);
+
+  const [red, setRed] = useState<number>(120);
+  const [green, setGreen] = useState<number>(120);
+  const [blue, setBlue] = useState<number>(120);
 
   useEffect(() => {
     const subscription = manager.onStateChange(state => {
@@ -99,7 +104,7 @@ function App(): React.JSX.Element {
               const encodedMessage = Buffer.from(message).toString('base64');
               await characteristic.writeWithResponse(encodedMessage);
               console.log('Message sent successfully');
-              // await readMessage();
+              await readMessage();
             }
           }
         }
@@ -112,20 +117,19 @@ function App(): React.JSX.Element {
     }
   };
 
-  const readMessage = async () => {
+  const sendColor = async () => {
     if (connectedDevice) {
       try {
         const services = await connectedDevice.services();
         for (const service of services) {
           const characteristics = await service.characteristics();
           for (const characteristic of characteristics) {
-            if (characteristic.isReadable) {
-              const readResult = await characteristic.read();
-              const decodedMessage = Buffer.from(
-                readResult.value,
-                'base64',
-              ).toString('utf-8');
-              console.log('Message received:', decodedMessage);
+            if (characteristic.isWritableWithResponse) {
+              const message = `rgb(${red},${green},${blue})`;
+              const encodedMessage = Buffer.from(message).toString('base64');
+              await characteristic.writeWithResponse(encodedMessage);
+              console.log('Message sent successfully');
+              // await readMessage();
               return;
             }
           }
@@ -138,6 +142,33 @@ function App(): React.JSX.Element {
       console.log('No device connected');
     }
   };
+
+  // const readMessage = async () => {
+  //   if (connectedDevice) {
+  //     try {
+  //       const services = await connectedDevice.services();
+  //       for (const service of services) {
+  //         const characteristics = await service.characteristics();
+  //         for (const characteristic of characteristics) {
+  //           if (characteristic.isReadable) {
+  //             const readResult = await characteristic.read();
+  //             const decodedMessage = Buffer.from(
+  //               readResult.value,
+  //               'base64',
+  //             ).toString('utf-8');
+  //             console.log('Message received:', decodedMessage);
+  //             return;
+  //           }
+  //         }
+  //       }
+  //       console.log('No writable characteristic found');
+  //     } catch (error) {
+  //       console.log('Error sending message:', error);
+  //     }
+  //   } else {
+  //     console.log('No device connected');
+  //   }
+  // };
 
   const renderDeviceItem = ({item}: {item: Device}) => (
     <TouchableOpacity
@@ -229,14 +260,19 @@ function App(): React.JSX.Element {
             'base64',
           ).toString('utf-8');
           console.log('Received data:', decodedValue);
-          const object = JSON.parse(decodedValue);
-          if (object.humidity) setAirHumidity(object.humidity);
-          if (object.temperature) setTemperature(object.temperature);
+          try {
+            const object = JSON.parse(decodedValue);
+            if (object.humidity) setAirHumidity(object.humidity);
+            if (object.temperature) setTemperature(object.temperature);
+          } catch (error) {
+            // console.error(error);
+          }
         }
       },
     );
   };
 
+  // 데이터를 2초마다 갱신시킴(온습도)
   useEffect(() => {
     if (connectedDevice) {
       const intervalFunction = () => {
@@ -287,8 +323,10 @@ function App(): React.JSX.Element {
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-            <Text>공기 습도</Text>
-            <Text>{airHumidity !== null ? `${airHumidity}%` : 'N/A'}</Text>
+            <Text style={{fontSize: 20, fontWeight: 700}}>공기 습도</Text>
+            <Text style={{fontSize: 28, fontWeight: 400, marginTop: 10}}>
+              {airHumidity !== null ? `${airHumidity}%` : ''}
+            </Text>
           </View>
           <View
             style={{
@@ -300,8 +338,10 @@ function App(): React.JSX.Element {
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-            <Text>토양 습도</Text>
-            <Text>{soilHumidity !== null ? `${soilHumidity}%` : 'N/A'}</Text>
+            <Text style={{fontSize: 20, fontWeight: 700}}>토양 습도</Text>
+            <Text style={{fontSize: 28, fontWeight: 400, marginTop: 10}}>
+              {soilHumidity !== null ? `${soilHumidity}%` : ''}
+            </Text>
           </View>
         </View>
         <View
@@ -321,8 +361,10 @@ function App(): React.JSX.Element {
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-            <Text>온도</Text>
-            <Text>{temperature !== null ? `${temperature}°C` : 'N/A'}</Text>
+            <Text style={{fontSize: 20, fontWeight: 700}}>온도</Text>
+            <Text style={{fontSize: 28, fontWeight: 400, marginTop: 10}}>
+              {temperature !== null ? `${temperature}°C` : ''}
+            </Text>
           </View>
           <TouchableOpacity
             style={{
@@ -335,8 +377,9 @@ function App(): React.JSX.Element {
               justifyContent: 'center',
             }}
             onPress={connectedDevice ? sendMessage : startScan}>
-            <Text>{connectedDevice ? connectedDevice.name : ''}</Text>
-            <Text>{connectedDevice ? '데이터 업데이트' : '블루투스 연결'}</Text>
+            <Text style={{fontSize: 20, fontWeight: 700}}>
+              {connectedDevice ? connectedDevice.name : '블루투스 연결'}
+            </Text>
           </TouchableOpacity>
         </View>
         <View
@@ -346,9 +389,181 @@ function App(): React.JSX.Element {
             backgroundColor: 'white',
             borderRadius: 30,
             display: 'flex',
+            flexDirection: 'row',
             alignItems: 'center',
-            justifyContent: 'center',
-          }}></View>
+            justifyContent: 'space-between',
+            padding: 20,
+          }}>
+          <View
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+            <TouchableOpacity
+              style={{
+                width: 50,
+                height: 30,
+                backgroundColor: '#EEEEEE',
+                borderTopRightRadius: 10,
+                borderTopLeftRadius: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onPress={() => {
+                if (red < 255) setRed(red + 5);
+              }}>
+              <Text>+</Text>
+            </TouchableOpacity>
+            <View
+              style={{
+                width: 50,
+                height: 50,
+                backgroundColor: 'red',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}>
+              <Text style={{fontWeight: 700, color: 'white'}}>{red}</Text>
+            </View>
+            <TouchableOpacity
+              style={{
+                width: 50,
+                height: 30,
+                backgroundColor: '#EEEEEE',
+                borderBottomRightRadius: 10,
+                borderBottomLeftRadius: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onPress={() => {
+                if (red > 0) setRed(red - 5);
+              }}>
+              <Text>-</Text>
+            </TouchableOpacity>
+          </View>
+          <View
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+            <TouchableOpacity
+              style={{
+                width: 50,
+                height: 30,
+                backgroundColor: '#EEEEEE',
+                borderTopRightRadius: 10,
+                borderTopLeftRadius: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onPress={() => {
+                if (green < 255) setGreen(green + 5);
+              }}>
+              <Text>+</Text>
+            </TouchableOpacity>
+            <View
+              style={{
+                width: 50,
+                height: 50,
+                backgroundColor: 'green',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}>
+              <Text style={{fontWeight: 700, color: 'white'}}>{green}</Text>
+            </View>
+            <TouchableOpacity
+              style={{
+                width: 50,
+                height: 30,
+                backgroundColor: '#EEEEEE',
+                borderBottomRightRadius: 10,
+                borderBottomLeftRadius: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onPress={() => {
+                if (green > 0) setGreen(green - 5);
+              }}>
+              <Text>-</Text>
+            </TouchableOpacity>
+          </View>
+          <View
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+            <TouchableOpacity
+              style={{
+                width: 50,
+                height: 30,
+                backgroundColor: '#EEEEEE',
+                borderTopRightRadius: 10,
+                borderTopLeftRadius: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onPress={() => {
+                if (blue < 255) setBlue(blue + 5);
+              }}>
+              <Text>+</Text>
+            </TouchableOpacity>
+            <View
+              style={{
+                width: 50,
+                height: 50,
+                backgroundColor: 'blue',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}>
+              <Text style={{fontWeight: 700, color: 'white'}}>{blue}</Text>
+            </View>
+            <TouchableOpacity
+              style={{
+                width: 50,
+                height: 30,
+                backgroundColor: '#EEEEEE',
+                borderBottomRightRadius: 10,
+                borderBottomLeftRadius: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onPress={() => {
+                if (blue > 0) setBlue(blue - 5);
+              }}>
+              <Text>-</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}
+            onPress={sendColor}>
+            <View
+              style={{
+                width: 50,
+                height: 50,
+                borderRadius: 50,
+                backgroundColor: `rgb(${red}, ${green}, ${blue})`,
+              }}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
       <ScanDeviceModal />
     </SafeAreaView>
