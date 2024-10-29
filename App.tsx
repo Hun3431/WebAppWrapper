@@ -7,11 +7,39 @@ import {
   View,
   TouchableOpacity,
   Image,
-  TextInput,
 } from 'react-native';
 import {BleManager, Device} from 'react-native-ble-plx';
 import {Buffer} from 'buffer';
 global.Buffer = Buffer;
+
+import {PermissionsAndroid, Platform} from 'react-native';
+
+const requestBlePermissions = async () => {
+  if (Platform.OS === 'android') {
+    if (Platform.Version >= 31) {
+      const result = await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      ]);
+
+      return (
+        result['android.permission.BLUETOOTH_CONNECT'] ===
+          PermissionsAndroid.RESULTS.GRANTED &&
+        result['android.permission.BLUETOOTH_SCAN'] ===
+          PermissionsAndroid.RESULTS.GRANTED &&
+        result['android.permission.ACCESS_FINE_LOCATION'] ===
+          PermissionsAndroid.RESULTS.GRANTED
+      );
+    } else {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      );
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
+    }
+  }
+  return true;
+};
 
 const manager = new BleManager();
 
@@ -45,7 +73,11 @@ function App(): React.JSX.Element {
     return () => subscription.remove();
   }, []);
 
-  const startScan = () => {
+  const startScan = async () => {
+    if (Platform.OS === 'android') {
+      const hasPermission = await requestBlePermissions();
+      if (!hasPermission) return;
+    }
     setScanDeviceModalVisible(true);
     if (!isScanning) {
       setDevices([]);
@@ -104,7 +136,9 @@ function App(): React.JSX.Element {
               const encodedMessage = Buffer.from(message).toString('base64');
               await characteristic.writeWithResponse(encodedMessage);
               console.log('Message sent successfully');
-              await readMessage();
+              // await readMessage(); // 이 줄을 주석 처리하거나 제거
+              await startMonitoringData(connectedDevice);
+              return; // 메시지를 성공적으로 보냈으면 함수를 종료
             }
           }
         }
@@ -130,6 +164,7 @@ function App(): React.JSX.Element {
               await characteristic.writeWithResponse(encodedMessage);
               console.log('Message sent successfully');
               // await readMessage();
+              await startMonitoringData(connectedDevice);
               return;
             }
           }
@@ -142,33 +177,6 @@ function App(): React.JSX.Element {
       console.log('No device connected');
     }
   };
-
-  // const readMessage = async () => {
-  //   if (connectedDevice) {
-  //     try {
-  //       const services = await connectedDevice.services();
-  //       for (const service of services) {
-  //         const characteristics = await service.characteristics();
-  //         for (const characteristic of characteristics) {
-  //           if (characteristic.isReadable) {
-  //             const readResult = await characteristic.read();
-  //             const decodedMessage = Buffer.from(
-  //               readResult.value,
-  //               'base64',
-  //             ).toString('utf-8');
-  //             console.log('Message received:', decodedMessage);
-  //             return;
-  //           }
-  //         }
-  //       }
-  //       console.log('No writable characteristic found');
-  //     } catch (error) {
-  //       console.log('Error sending message:', error);
-  //     }
-  //   } else {
-  //     console.log('No device connected');
-  //   }
-  // };
 
   const renderDeviceItem = ({item}: {item: Device}) => (
     <TouchableOpacity
@@ -262,8 +270,8 @@ function App(): React.JSX.Element {
           console.log('Received data:', decodedValue);
           try {
             const object = JSON.parse(decodedValue);
-            if (object.humidity) setAirHumidity(object.humidity);
-            if (object.temperature) setTemperature(object.temperature);
+            if (object.h) setAirHumidity(object.h);
+            if (object.t) setTemperature(object.t);
           } catch (error) {
             // console.error(error);
           }
