@@ -368,10 +368,13 @@ function App(): React.JSX.Element {
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-            <Text style={{fontSize: 20, fontWeight: 700}}>재배 기간</Text>
-            <Text style={{fontSize: 28, fontWeight: 400, marginTop: 10}}>
-              {soilHumidity !== null ? `${soilHumidity}%` : ''}
-            </Text>
+            <Image
+              source={require('./image/sprout.png')}
+              style={{
+                width: '100%',
+                height: '100%'
+              }}
+            />
           </View>
         </View>
         <View
@@ -642,7 +645,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-start',
     alignItems: 'center',
-    padding: 20,
+    padding: 0,
   },
   title: {
     fontSize: 20,
