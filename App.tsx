@@ -7,6 +7,7 @@ import {
   View,
   TouchableOpacity,
   Image,
+  Switch,
 } from 'react-native';
 import {BleManager, Device} from 'react-native-ble-plx';
 import {Buffer} from 'buffer';
@@ -62,6 +63,10 @@ function App(): React.JSX.Element {
   const [red, setRed] = useState<number>(120);
   const [green, setGreen] = useState<number>(120);
   const [blue, setBlue] = useState<number>(120);
+
+  const [bkRed, setBkRed] = useState<number>(120);
+  const [bkGreen, setBkGreen] = useState<number>(120);
+  const [bkBlue, setBkBlue] = useState<number>(120);
 
   useEffect(() => {
     const subscription = manager.onStateChange(state => {
@@ -150,6 +155,23 @@ function App(): React.JSX.Element {
       console.log('No device connected');
     }
   };
+
+  const turnOffLED = async () => {
+    setBkRed(red)
+    setBkGreen(green)
+    setBkBlue(blue)
+    setRed(0)
+    setGreen(0)
+    setBlue(0)
+    sendColor()
+  }
+
+  const turnOnLED = async () => {
+    setRed(bkRed)
+    setGreen(bkGreen)
+    setBlue(bkBlue)
+    sendColor()
+  }
 
   const sendColor = async () => {
     if (connectedDevice) {
@@ -346,7 +368,7 @@ function App(): React.JSX.Element {
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-            <Text style={{fontSize: 20, fontWeight: 700}}>토양 습도</Text>
+            <Text style={{fontSize: 20, fontWeight: 700}}>재배 기간</Text>
             <Text style={{fontSize: 28, fontWeight: 400, marginTop: 10}}>
               {soilHumidity !== null ? `${soilHumidity}%` : ''}
             </Text>
@@ -555,22 +577,59 @@ function App(): React.JSX.Element {
               <Text>-</Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity
+          <View
             style={{
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
-            }}
-            onPress={sendColor}>
-            <View
+              alignItems: 'center',
+            }}>
+            <TouchableOpacity
               style={{
-                width: 50,
-                height: 50,
-                borderRadius: 50,
-                backgroundColor: `rgb(${red}, ${green}, ${blue})`,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
               }}
-            />
-          </TouchableOpacity>
+              onPress={sendColor}>
+              <View
+                style={{
+                  width: 50,
+                  height: 50,
+                  borderRadius: 50,
+                  backgroundColor: `rgb(${red}, ${green}, ${blue})`,
+                }}
+              />
+            </TouchableOpacity>
+            <View style={{display: 'flex', flexDirection: 'row'}}>
+              <TouchableOpacity style={{marginTop: 6}} onPress={turnOffLED}>
+                <View
+                  style={{
+                    width: 45,
+                    height: 30,
+                    borderRadius: 25,
+                    backgroundColor: '#a1bd4a',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                  <Text style={{color: 'white', fontWeight: 'bold'}}>OFF</Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity style={{marginTop: 6}} onPress={turnOnLED}>
+                <View
+                  style={{
+                    width: 45,
+                    height: 30,
+                    borderRadius: 25,
+                    backgroundColor: '#a1bd4a',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginLeft: 6
+                  }}>
+                  <Text style={{color: 'white', fontWeight: 'bold'}}>ON</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </View>
       <ScanDeviceModal />
